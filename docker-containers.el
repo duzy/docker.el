@@ -23,48 +23,46 @@
 
 ;;; Code:
 
+(require 'docker-api-containers)
 (require 'docker-process)
 (require 'docker-utils)
 (require 'tablist)
 
-(require 'eieio)
 (require 'magit-popup)
 
-(defclass docker-container ()
-  ((id           :initarg :id           :initform nil)
-   (image        :initarg :image        :initform nil)
-   (command      :initarg :command      :initform nil)
-   (created      :initarg :created      :initform nil)
-   (status       :initarg :status       :initform nil)
-   (ports        :initarg :ports        :initform nil)
-   (names        :initarg :names        :initform nil)))
+(defun docker-container-name (data)
+  "Return the container name from DATA."
+  (s-chop-prefix "/" (car (assoc-default 'Names data))))
 
-(defmethod docker-container-name ((this docker-container))
-  "Return the container name."
-  (oref this :names))
+(defun docker-container-created-at (data)
+  "Return the container creation date from DATA."
+  (prin1-to-string (assoc-default 'Created data)))
 
-(defmethod docker-container-to-tabulated-list ((this docker-container))
-  "Convert `docker-container' to tabulated list."
-  (list (oref this :id)
-        `[,(oref this :id)
-          ,(oref this :image)
-          ,(oref this :command)
-          ,(oref this :created)
-          ,(oref this :status)
-          ,(oref this :ports)
-          ,(oref this :names)]))
+(defun docker-container-port (data)
+  "Return the container creation date from DATA."
+  (prin1-to-string (assoc-default 'Ports data)))
 
-(defun make-docker-container (id image command created status ports names &rest unused)
-  "Helper to create a `eieio` docker container object."
-  (docker-container id :id id :image image :command command :created created :status status :ports ports :names names))
+(defun docker-container-to-tabulated-list-entry (data)
+  "Convert a docker container to tabulated list entry."
+  (vconcat
+   (--map-when (null it) ""
+               (list
+                (assoc-default 'Id data)
+                (assoc-default 'Image data)
+                (assoc-default 'Command data)
+                (docker-container-created-at data)
+                (assoc-default 'Status data)
+                (docker-container-port data)
+                (docker-container-name data)))))
 
-(defun docker-container-parse (line)
-  "Convert LINE from 'docker containers' to `docker-container'."
-  (apply #'make-docker-container (s-split " \\{3,15\\}" line)))
+(defun docker-container-to-tabulated-list (data)
+  "Convert a docker container to tabulated list."
+  (list (assoc-default 'Id data)
+        (docker-container-to-tabulated-list-entry data)))
 
 (defun docker-container-names ()
   "Return the list of container names."
-  (--map (docker-container-name it) (docker-get-containers t)))
+  (-map 'docker-container-name (docker-api-containers t)))
 
 (defun docker-read-container-name (prompt)
   "Read an container name."
@@ -104,17 +102,6 @@
   "Inspect a container."
   (interactive (list (docker-read-container-name "Inspect container: ")))
   (docker "inspect" name))
-
-(defun docker-get-containers (&optional all quiet filters)
-  "Get containers as eieio objects."
-  (let* ((data (docker-get-containers-raw all quiet filters))
-         (lines (s-split "\n" data t))
-         (lines (cdr lines)))
-    (-map 'docker-container-parse lines)))
-
-(defun docker-get-containers-raw (&optional all quiet filters)
-  "Equivalent of \"docker containers\"."
-  (docker "ps" (when all "-a ") (when quiet "-q ") (when filters (s-join " --filter=" filters))))
 
 (defun docker-containers-selection ()
   "Get the containers selection as a list of ids."
@@ -211,7 +198,7 @@
 
 (defun docker-containers-refresh ()
   "Refresh the containers list."
-  (setq tabulated-list-entries (-map 'docker-container-to-tabulated-list (docker-get-containers t))))
+  (setq tabulated-list-entries (-map 'docker-container-to-tabulated-list (docker-api-containers t))))
 
 (defvar docker-containers-mode-map
   (let ((map (make-sparse-keymap)))

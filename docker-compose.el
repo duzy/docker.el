@@ -100,6 +100,44 @@
   (interactive (list (docker-compose-read-service-name "Delete service: ")))
   (docker-compose "rm" "-f" (when service service)))
 
+(docker-utils-define-popup docker-compose-popup
+  "Popup for docker-compose."
+  'docker-compose-popups
+  :man-page "docker-compose"
+  :actions  '((?r "Up"      docker-compose-up-selection)
+              (?s "Start"   docker-compose-start-selection)
+              (?o "Stop"    docker-compose-stop-selection)
+              (?d "Delete"  docker-compose-delete-selection)
+              (?r "Restart" docker-compose-restart-selection)
+              (?b "Build"   docker-compose-build-selection)
+              (?c "Create"  docker-compose-create-selection)))
+
+(defun docker-compose-refresh ()
+  "Refresh the docker-compose entries."
+  (setq tabulated-list-entries (docker-compose-entries)))
+
+(defvar docker-compose-ps-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "c" 'docker-compose-popup))
+  "Keymap for `docker-compose-ps-mode'.")
+
+;;;###autoload
+(defun docker-compose-ps ()
+  "List docker compose-ps."
+  (interactive)
+  (pop-to-buffer "*docker-compose-ps*")
+  (docker-compose-ps-mode)
+  (tablist-revert))
+
+(define-derived-mode docker-compose-ps-mode tabulated-list-mode "Compose Menu"
+  "Major mode for handling docker compose lists."
+  (setq tabulated-list-format [("Name" 16 t)("Active" 7 t)("Driver" 12 t)("State" 12 t)("URL" 30 t)("Swarm" 10 t)("Docker" 10 t)("Errors" 10 t)])
+  (setq tabulated-list-padding 2)
+  (setq tabulated-list-sort-key (cons "Name" nil))
+  (add-hook 'tabulated-list-revert-hook 'docker-compose-ps-refresh nil t)
+  (tabulated-list-init-header)
+  (tablist-minor-mode))
+
 (defvar docker-compose-map
   (let ((map (make-sparse-keymap)))
     (define-key map "b" 'docker-compose-build)
